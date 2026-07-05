@@ -1,0 +1,35 @@
+{
+    email {$EMAIL:admin@{$DOMAIN}}
+}
+
+# Matrix Homeserver (Client & Federation)
+{$MATRIX_SUBDOMAIN}.{$DOMAIN} {
+    reverse_proxy synapse:8008
+
+    # Well-known delegation
+    handle /.well-known/matrix/client {
+        header Access-Control-Allow-Origin "*"
+        header Content-Type "application/json"
+        respond `{"m.homeserver":{"base_url":"https://{$MATRIX_SUBDOMAIN}.{$DOMAIN}"},"org.matrix.msc3575.proxy":{"url":"https://{$MATRIX_SUBDOMAIN}.{$DOMAIN}"}}`
+    }
+
+    handle /.well-known/matrix/server {
+        header Content-Type "application/json"
+        respond `{"m.server":"{$MATRIX_SUBDOMAIN}.{$DOMAIN}:443"}`
+    }
+}
+
+# LiveKit API
+{$LIVEKIT_SUBDOMAIN}.{$DOMAIN} {
+    reverse_proxy livekit:7880
+}
+
+# Element Call
+{$CALL_SUBDOMAIN}.{$DOMAIN} {
+    reverse_proxy element-call:80
+}
+
+# Localhost testing
+localhost:80 {
+    reverse_proxy synapse:8008
+}

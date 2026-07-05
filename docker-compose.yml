@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # ── REVERSE PROXY ──────────────────────────────────────────────────
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+      - MATRIX_SUBDOMAIN=${MATRIX_SUBDOMAIN}
+      - LIVEKIT_SUBDOMAIN=${LIVEKIT_SUBDOMAIN}
+      - CALL_SUBDOMAIN=${CALL_SUBDOMAIN}
+      - EMAIL
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - matrix_net
+
+  # ── MATRIX HOMESERVER ──────────────────────────────────────────────
+  synapse:
+    build:
+      context: ./synapse
+    image: callafriend-synapse:local
+    restart: unless-stopped
+    volumes:
+      - ./synapse:/data
+    environment:
+      - SYNAPSE_CONFIG_PATH=/data/homeserver.rendered.yaml
+      - DOMAIN=${DOMAIN}
+      - MATRIX_SUBDOMAIN=${MATRIX_SUBDOMAIN}
+      - LIVEKIT_SUBDOMAIN=${LIVEKIT_SUBDOMAIN}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - SYNAPSE_REPORT_STATS=${SYNAPSE_REPORT_STATS}
+      - MACAROON_SECRET_KEY=${MACAROON_SECRET_KEY}
+      - REGISTRATION_SHARED_SECRET=${REGISTRATION_SHARED_SECRET}
+      - FORM_SECRET=${FORM_SECRET}
+    depends_on:
+      - postgres
+    networks:
+      - matrix_net
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=synapse
+      - POSTGRES_DB=synapse
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - matrix_net
+
+  # ── VOIP FRONTEND ──────────────────────────────────────────────────
+  element-call:
+    image: ghcr.io/element-hq/element-call:sha-72b0d12
+    restart: unless-stopped
+    environment:
+      - CONF_DEFAULT_THEME=dark
+    networks:
+      - matrix_net
+
+  # ── LIVEKIT MEDIA SERVER ───────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: ${LIVEKIT_KEYS}
+      LIVEKIT_TURN_DOMAIN: "${LIVEKIT_SUBDOMAIN}.${DOMAIN}"
+      LIVEKIT_TURN_EXTERNAL_IP: "${DOMAIN}"
+    ports:
+      - "7881:7881"   # WebRTC TCP
+      - "50400-50500:50400-50500/udp" # WebRTC UDP
+    networks:
+      - matrix_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7880/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+
+  livekit-jwt-service:
+    build: ./livekit-jwt-service
+    restart: unless-stopped
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - SYNAPSE_URL=http://synapse:8008
+    networks:
+      - matrix_net
+
+  # ── AI STACK (CPU ONLY) ────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - matrix_net
+    # Recommended: cpus: 2.0, mem_limit: 4GB (for 3B model)
+
+  stt-service:
+    build: ./stt-service
+    restart: unless-stopped
+    environment:
+      - STT_MODEL=${STT_MODEL:-large-v3-turbo}
+      - STT_MIN_CHUNK_SIZE=${STT_MIN_CHUNK_SIZE:-1.0}
+      - STT_COMPUTE_TYPE=${STT_COMPUTE_TYPE:-int8}
+      - STT_THREADS=${STT_THREADS:-4}
+    volumes:
+      - whisper_model_cache:/model-cache
+    networks:
+      - matrix_net
+
+  tts-service:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    restart: unless-stopped
+    environment:
+      - KOKORO_VOICES=${TTS_VOICE:-af_heart},am_adam
+    networks:
+      - matrix_net
+
+  ai-agent:
+    build: ./ai-agent
+    restart: unless-stopped
+    environment:
+      - LIVEKIT_URL=http://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b}
+      - LLM_SYSTEM_PROMPT=${LLM_SYSTEM_PROMPT:-You are a helpful AI assistant in a group voice call. Keep answers concise - 2 to 3 sentences maximum. Avoid markdown, bullet points, and special characters since your response will be spoken aloud.}
+      - LOG_TRANSCRIPTS=${LOG_TRANSCRIPTS:-false}
+      - STT_WS_URL=ws://stt-service:8000/ws/transcribe
+      - TTS_URL=http://tts-service:8880/v1/audio/speech
+      - TTS_VOICE=${TTS_VOICE:-af_heart}
+      - ASSISTANT_USER_ID=${ASSISTANT_USER_ID}
+    depends_on:
+      - livekit
+      - ollama
+      - stt-service
+      - tts-service
+    networks:
+      - matrix_net
+    # Recommended: cpus: 1.0, mem_limit: 512MB
+
+networks:
+  matrix_net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  ollama_data:
+  whisper_model_cache:

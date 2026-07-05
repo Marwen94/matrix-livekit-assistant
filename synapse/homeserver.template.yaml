@@ -1,0 +1,61 @@
+# ── SYNAPSE CONFIG TEMPLATE ─────────────────────────────────────────
+# This file is rendered at container startup using values from `.env`.
+
+server_name: "${DOMAIN}"
+public_baseurl: "https://${MATRIX_SUBDOMAIN}.${DOMAIN}"
+signing_key_path: "/data/signing.key"
+
+# ── DATABASE ───────────────────────────────────────────────────────
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "${POSTGRES_PASSWORD}"
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+# ── LISTENERS ──────────────────────────────────────────────────────
+listeners:
+  - port: 8008
+    tls: false
+    type: http
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+
+# ── REGISTRATION & AUTH ────────────────────────────────────────────
+enable_registration: false
+enable_registration_without_verification: true
+allow_guest_access: false
+macaroon_secret_key: "${MACAROON_SECRET_KEY}"
+registration_shared_secret: "${REGISTRATION_SHARED_SECRET}"
+form_secret: "${FORM_SECRET}"
+
+# ── MEDIA STORE ────────────────────────────────────────────────────
+media_store_path: "/data/media_store"
+
+# ── TURN / STUN ────────────────────────────────────────────────────
+# Points to LiveKit's built-in TURN server
+turn_uris:
+  - "turn:${LIVEKIT_SUBDOMAIN}.${DOMAIN}:3478?transport=udp"
+  - "turn:${LIVEKIT_SUBDOMAIN}.${DOMAIN}:3478?transport=tcp"
+turn_shared_secret: "${LIVEKIT_API_SECRET}"
+turn_user_lifetime: 86400000
+
+# ── FEDERATION ─────────────────────────────────────────────────────
+federation_domain_whitelist: [] # Leave empty to allow all
+
+# ── LIVEKIT / ELEMENT CALL INTEGRATION ──────────────────────────────
+# This allows Element Call to use LiveKit via this homeserver
+voip:
+  livekit:
+    server_url: "https://${LIVEKIT_SUBDOMAIN}.${DOMAIN}"
+    key: "${LIVEKIT_API_KEY}"
+    secret: "${LIVEKIT_API_SECRET}"
+
+# ── LOGGING ────────────────────────────────────────────────────────
+log_config: "/data/log.config"
+report_stats: "${SYNAPSE_REPORT_STATS}"

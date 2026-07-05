@@ -1,0 +1,25 @@
+[project]
+name = "ai-agent"
+version = "0.1.0"
+description = "LiveKit AI Agent for Matrix VoIP calls"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "livekit-agents==0.6.0",
+    "livekit-plugins-silero==0.4.0",
+    "faster-whisper>=1.1.0",
+    "av>=12.0.0",
+    "httpx==0.26.0",
+    "soundfile==0.12.1",
+    "resampy==0.4.3",
+    "scipy==1.12.0",
+    "numpy==1.26.3",
+    "websockets==12.0",
+    "python-dotenv==1.0.1",
+    "torch==2.2.0",
+    "torchaudio==2.2.0",
+    "numba==0.60.0"
+]
+
+[tool.uv]
+dev-dependencies = []

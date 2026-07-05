@@ -1,0 +1,46 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# Synapse / Matrix
+synapse/*.signing.key
+synapse/signing.key
+synapse/*.db
+synapse/*.log*
+synapse/uploads/
+synapse/media_store/
+synapse/homeserver.rendered.yaml
+
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if mapped locally)
+postgres_data/
+ollama_data/
+whisper_model_cache/
+caddy_data/
+caddy_config/
+
+# Logs
+*.log
