@@ -1,5 +1,5 @@
 {
-    email {$EMAIL:admin@{$DOMAIN}}
+    email {$EMAIL}
 }
 
 # Matrix Homeserver (Client & Federation)

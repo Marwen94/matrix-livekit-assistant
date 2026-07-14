@@ -21,6 +21,16 @@ services:
     networks:
       - matrix_net
 
+  # ── CLOUDFLARE TUNNEL ──────────────────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+    networks:
+      - matrix_net
+
   # ── MATRIX HOMESERVER ──────────────────────────────────────────────
   synapse:
     build:
